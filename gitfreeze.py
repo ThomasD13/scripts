@@ -12,15 +12,16 @@ import argparse
 ##Class Definitions
 #######################################################################################################################
 class GitRepository:
-    absolutePath = ""
+#   absolutePath = ""  //We dont use absolute paths anymore, since this should work "portable" on different machines
     repoName = ""
     branchName = ""
     commitID = ""
+    upstreamPath= ""
     detachedHead = False
     cleanState = False
 
     def __init__(self, path):
-        self.absolutePath = os.path.abspath(path)
+        #self.absolutePath = os.path.abspath(path)
         #As this is a git repository, I assume it contains a ".git" folder ;)
         self.repoName = os.path.basename(path)
 
@@ -64,9 +65,9 @@ def identifyGitRepositories(out_ListOfFoundRepos, absolutePathToSearch, printInf
                 #print("Git repository found in " + relativeDirPath)
                 out_ListOfFoundRepos.append(GitRepository(absoluteItemPath))
 
-    out_ListOfFoundRepos.sort(key=lambda x: x.absolutePath)
+    out_ListOfFoundRepos.sort(key=lambda x: x.repoName)
 
-    #We need to know for each repository the branch name, and revision id
+    #We need to know for each repository the branch name, revision id and upstream url
     currentDir = os.curdir
     for repo in out_ListOfFoundRepos:  # type: GitRepository
         #os.chdir(os.path.abspath(repoDir))
@@ -81,19 +82,25 @@ def identifyGitRepositories(out_ListOfFoundRepos, absolutePathToSearch, printInf
 
         #stdout argument is required to store the stdout-output in a variable
         #universal_newlines is required to get a "string" not byte-values from stdout
-        p1 = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo.absolutePath, stdout=subprocess.PIPE, universal_newlines=True)
+        #TODO: Check for detached head
+        absoluteRepoPath = os.path.join(absolutePathToSearch, repo.repoName)
+        p1 = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=absoluteRepoPath, stdout=subprocess.PIPE, universal_newlines=True)
         repo.branchName = p1.stdout.strip() # remove the trailing newline \n
 
-        p2 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo.absolutePath, stdout=subprocess.PIPE, universal_newlines=True)
+        p2 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=absoluteRepoPath, stdout=subprocess.PIPE, universal_newlines=True)
         repo.commitID = p2.stdout.strip() # remove the trailing newline \n
 
-def checkIfRepoIsClean(repo: GitRepository):
+        p3 = subprocess.run(["git", "ls-remote", "--get-url"], cwd=absoluteRepoPath, stdout=subprocess.PIPE, universal_newlines=True)
+        repo.upstreamPath = p3.stdout.strip() # remove the trailing newline \n
+
+def checkIfRepoIsClean(repo: GitRepository, absolutePathToSearch):
     """
     Checks a given repository if the working directory is "clean".
     :param repo: Git Repository to check
+    :param absolutePathToSearch: Absolute Path where repo should be inside
     :return: True: If repository is in a CLEAN state (No changes, nothing in stage), False otherwise
     """
-    p1 = subprocess.run(["git", "status", "--porcelain"], cwd=repo.absolutePath,
+    p1 = subprocess.run(["git", "status", "--porcelain"], cwd=os.path.join(absolutePathToSearch, repo.repoName),
                         stdout=subprocess.PIPE, universal_newlines=True)
     status = p1.stdout.strip()  # remove the trailing newline \n
     if(status == ""):
@@ -103,13 +110,20 @@ def checkIfRepoIsClean(repo: GitRepository):
         print(bcolors.FAIL +  "%-*s is in NOT CLEAR state" % (35, repo.repoName) + bcolors.ENDC)
         return False
 
-def checkoutCommit(repo: GitRepository, commitID):
+def checkoutCommit(repo: GitRepository, absolutePathToSearch):
     """
     Try to checkout the working directory of given Git Repository to specific commitID
     :param repo: Git repository to work on
-    :param commitID: CommitId which should get checked out
+    :param absolutePathToSearch: Absolute Path where repo should be inside
     """
-    p1 = subprocess.run(["git", "checkout", commitID], cwd=repo.absolutePath,
+    #First fetch everything, to be able to checkout commits which are still on remote
+    p0 = subprocess.run(["git", "fetch", "--all"], cwd=os.path.join(absolutePathToSearch, repo.repoName),
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        universal_newlines=True)
+
+    print("{0}: {1})".format(repo.repoName, p0.stdout.strip()))
+
+    p1 = subprocess.run(["git", "checkout", repo.commitID], cwd=os.path.join(absolutePathToSearch, repo.repoName),
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                         universal_newlines=True)
 
@@ -127,6 +141,7 @@ def main():
     parser.add_argument("-list", action="store_true", help="Just prints a list of found repositories and their state")
     parser.add_argument("-save", help="Save the found repositories and their state into FILENAME.json file. This can be used to restore the repos state")
     parser.add_argument("-restore", help="Restore repositories according given file FILENAME.json")
+    parser.add_argument("-force", action="store_true", help="Force to restore repositories, even if exiting ones are not in clean state")
     args = parser.parse_args()
 
     searchDirectoryAbsolute = os.path.abspath(args.d)
@@ -149,13 +164,13 @@ def main():
         try:
             with open(args.restore, "r") as jsonFile:  # type: TextIO
                 gitRepositoriesToRestore = jsonpickle.decode(jsonFile.read())
-
         except (IOError):
             print("Could not open file " + args.restore)
             sys.exit(-1)
 
         #Check which repositories already exists in given path. If they exists, check if they are in clean state
         #If they are in clean state, I assume its save to checkout another changeset
+        #If they are not in clean state, and -force flag was given, restore it anyway
         print("")   #Just formating (Newline)
         print("Restore already existent repositories. Need to check if this is clean. If not, stop here!")
         for repoToRestore in gitRepositoriesToRestore: #type: GitRepository
@@ -163,9 +178,12 @@ def main():
             for alreadyExitentRepo in gitRepositories: #type: GitRepository
                 if alreadyExitentRepo.repoName == repoToRestore.repoName:
                     repoFound = True
-                    if(checkIfRepoIsClean(alreadyExitentRepo) == False):
-                        sys.exit(-1)
-                    break
+                    if checkIfRepoIsClean(alreadyExitentRepo, searchDirectoryAbsolute) == False:
+                        if(args.force is None):
+                            sys.exit(-1)
+                            break
+                        else:
+                            print("Ignoring not clean repo because of forced mode")
             if(repoFound == False):
                 #Repo seems not to exist. stop here:
                 print("Repository {0} not found! Stopped here!".format(repoToRestore.repoName))
@@ -176,26 +194,39 @@ def main():
         for repoToRestore in gitRepositoriesToRestore: #type: GitRepository
             for alreadyExitentRepo in gitRepositories: #type: GitRepository
                 if alreadyExitentRepo.repoName == repoToRestore.repoName:
-                    checkoutCommit(repoToRestore, repoToRestore.commitID)
+                    checkoutCommit(repoToRestore, searchDirectoryAbsolute)
 
 
-        #Last step is a final check:
+        #Last step is a final check: But only check repos which are got restored by this!
         restoredRepos = []
         identifyGitRepositories(restoredRepos, searchDirectoryAbsolute, False)
         repositoriesAreEqual = True
-        if(len(gitRepositoriesToRestore) != len(restoredRepos)):
-            repositoriesAreEqual = False
 
-        for i in range(len(gitRepositoriesToRestore)):
-            if(gitRepositoriesToRestore[i].commitID != restoredRepos[i].commitID):
+        #restoredRepos could have more repos, since there could been already git repositories.
+        #Therefore, we remove all not known repos before proceed with our checks
+        for repoToRestore in gitRepositoriesToRestore:
+            if any(x.repoName == repoToRestore.repoName for x in restoredRepos ) == False:
                 repositoriesAreEqual = False
-                print("{0}Final check failed at Repository {1}: CommitID is {2} but should be {3}{4}",
-                      bcolors.FAIL, restoredRepos[i].repoName, restoredRepos[i].commitID,
-                      gitRepositoriesToRestore[i].commitID, bcolors.ENDC)
+                print("Repository to restore {0} was not found in target directory".format(repoToRestore.repoName))
+            else:
+                #Find that element and test the commit ID
+                for restoredRepository in enumerate(restoredRepos):
+                    if(restoredRepository[1].repoName == repoToRestore.repoName):
+                        if(restoredRepository[1].commitID != repoToRestore.commitID):
+                            print("{0}Final check failed at Repository {1}: CommitID is {2} but should be {3}{4}".format(
+                            bcolors.FAIL, restoredRepository[1].repoName, restoredRepository[1].commitID,
+                            repoToRestore.commitID, bcolors.ENDC))
+                            repositoriesAreEqual = False
+                        else:
+                            #Seems fine, so abort the enumerate loop. We found what we are looking for
+
+                            break
 
         print("")   #Just formating (Newline)
         if(repositoriesAreEqual):
             print(bcolors.OKGREEN + "Restored Repositories successfully!" + bcolors.ENDC)
+            print(*gitRepositoriesToRestore, sep="\n")
+            print("")  # Just formating (Newline)
         else:
             print(bcolors.FAIL + "Restored Repositories NOT successfully!" + bcolors.ENDC)
 
