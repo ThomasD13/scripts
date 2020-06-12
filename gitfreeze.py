@@ -157,7 +157,7 @@ def main():
     if(args.save):
         #We want human readable format, not everything in one line
         #See https://stackoverflow.com/questions/2664818/serializing-json-files-with-newlines-in-python
-        jsonpickle.set_encoder_options('json', indent=4)
+        jsonpickle.set_encoder_options('simplejson', indent=4)
         frozen = jsonpickle.encode(gitRepositories)
         with open(args.save + ".json", "w") as jsonFile:
             jsonFile.write(frozen)
