@@ -130,6 +130,21 @@ def checkoutCommit(repo: GitRepository, absolutePathToSearch):
     status = p1.stdout.strip()  # remove the trailing newline \n
     print("{0}: {1}".format(repo.repoName, status))
 
+def cloneRepo(repo: GitRepository, absolutePathToSearch):
+    """
+    :param repo: Git repository to clone
+    :return: True: It seems to have worked successfully, False: Clone failed
+    """
+    p0 = subprocess.run(["git", "clone", repo.upstreamPath, repo.repoName], cwd=absolutePathToSearch,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        universal_newlines=True)
+
+    print("{0}: {1})".format(repo.repoName, p0.stdout.strip()))
+
+    #Check if it was successfull
+    return checkIfRepoIsClean(repo, absolutePathToSearch)
+
+
 ########################################################################################################################
 ## Main Definition
 ########################################################################################################################
@@ -187,10 +202,17 @@ def main():
                             break
                         else:
                             print("Ignoring not clean repo because of forced mode")
-            if(repoFound == False):
+            if(repoFound == False and args.force is None):
                 #Repo seems not to exist. stop here:
                 print("Repository {0} not found! Stopped here!".format(repoToRestore.repoName))
                 sys.exit(-1)
+            if(repoFound == False and args.force is not None):
+                #Repo seems not to exist, but force mode detected. So its gonna get cloned.
+                print("Repository {0} not found! Try to clone it!".format(repoToRestore.repoName))
+                success = cloneRepo(repoToRestore, searchDirectoryAbsolute)
+                if(success is False):
+                    print("Repository {0} could not get cloned successfully! Stopped here!".format(repoToRestore.repoName))
+                    sys.exit(-1)
 
         #Every repo to restore has a clear state. Checkout desired commit
         print("")   #Just formating (Newline)
