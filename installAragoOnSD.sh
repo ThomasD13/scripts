@@ -1,7 +1,23 @@
 #!/bin/bash
 
+SOURCEDIR="/home/thomas/deleteMe/j7-evm"
+ROOTFSIMAGE="tisdk-default-image-j7-evm.tar.xz"
+
+if [ "$1" != "" ]; then
+    echo "Testing $SOURCEDIR/$1"
+    if test -f "$SOURCEDIR/$1"; then
+        echo "Given argument is used as rootfsimage name: $1"
+        ROOTFSIMAGE="$1"
+    else
+	echo "Given rootfsimage not found: $SOURCEDIR/$1"
+	echo "Stop here!"
+	exit
+    fi
+else
+    echo "Positional parameter 1 is empty"
+fi
+
 echo "Start copying boot stuff to sdc1"
-SOURCEDIR="/home/thomas/tda4vmx/psdk-linux-automotive-j7-evm-07_00_01/yocto-build/build/arago-tmp-external-arm-glibc/deploy/images/j7-evm"
 cp -L -f -v ${SOURCEDIR}/tiboot3.bin /media/thomas/BOOT/
 cp -L -f -v ${SOURCEDIR}/tispl.bin /media/thomas/BOOT/
 cp -L -f -v ${SOURCEDIR}/u-boot.img /media/thomas/BOOT/
@@ -12,12 +28,12 @@ echo ""
 echo "Start copying rootfs to sdc2"
 sudo rm -rf /media/thomas/rootfs/*
 
-cp -L -f -v ${SOURCEDIR}/tisdk-default-image-j7-evm.tar.xz /media/thomas/rootfs/
+cp -L -f -v ${SOURCEDIR}/${ROOTFSIMAGE} /media/thomas/rootfs/
 sync
 echo "Start with extracting"
 cd /media/thomas/rootfs
-tar -xvJf tisdk-default-image-j7-evm.tar.xz
+tar -xvJf ${ROOTFSIMAGE}
 cd -
-rm /media/thomas/rootfs/tisdk-default-image-j7-evm.tar.xz
+rm /media/thomas/rootfs/${ROOTFSIMAGE}
 sync
 echo "!!!!!!!!! FINISHED!!!!!!!!!!!!"
