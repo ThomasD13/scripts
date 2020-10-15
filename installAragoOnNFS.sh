@@ -4,8 +4,12 @@
 #and extract it to defined PSDKLA NFS folder for network boot on TDA4EVMX
 REMOTEMACHINE="172.16.1.150"
 REMOTESOURCEDIR="/home/ewdt/oe/arago/build/arago-tmp-external-arm-glibc/deploy/images/j7-evm"
-LOCALTARGETDIR="/home/thomas/tda4vmx/psdk-linux-automotive-j7-evm-07_00_01/targetNFS"
+LOCALTARGETDIRROOTFS="/home/thomas/tda4vmx/psdk-linux-automotive-j7-evm-07_00_01/targetNFS"
+LOCALTARGETDIRKERNEL="/tftpboot"
+KERNELIMAGE="Image-j7-evm.bin"
+DEVICETREE="k3-j721e-common-proc-board.dtb"
 ROOTFSIMAGE="viop-image-j7-evm.tar.xz"
+#ROOTFSIMAGE="tisdk-default-image-j7-evm.tar.xz"
 
 if [ "$1" != "" ]; then
     echo "Testing $SOURCEDIR/$1"
@@ -22,12 +26,15 @@ else
 fi
 
 echo "Please check following settings and confirm with SPACE or CTRL-C to stop!"
-echo "Warning: LOCALTARGETDIR will get deleted!!!"
+echo "Warning: LOCALTARGETDIRROOTFS will get deleted!!!"
 echo ""
-echo "Remote machine:	 $REMOTEMACHINE"
-echo "Remote source dir: $REMOTESOURCEDIR"
-echo "Local target dir:  $LOCALTARGETDIR"
-echo "Name rootfs image: $ROOTFSIMAGE"
+echo "Remote machine:	 	$REMOTEMACHINE"
+echo "Remote source dir: 	$REMOTESOURCEDIR"
+echo "Local target rootfs dir:  $LOCALTARGETDIRROOTFS"
+echo "Local target kernel dir:  $LOCALTARGETDIRKERNEL"
+echo "Name rootfs image: 	$ROOTFSIMAGE"
+echo "Name kernel image:	$KERNELIMAGE"
+echo "Name devicetree:		$DEVICETREE"
 echo ""
 
 read -n1 -r -p "Press space to continue..." key
@@ -40,28 +47,26 @@ else
 fi
 
 # 1. Delete everything in local targetdir
-echo "Delete everything in LOCALTARGETDIR"
-if test -d "$LOCALTARGETDIR"; then
-    echo "rm -rf $LOCALTARGETDIR/*"
-    sudo rm -rf ${LOCALTARGETDIR}/*
+echo "Delete everything in LOCALTARGETDIRROOTFS"
+if test -d "$LOCALTARGETDIRROOTFS"; then
+    echo "rm -rf $LOCALTARGETDIRROOTFS/*"
+    sudo rm -rf ${LOCALTARGETDIRROOTFS}/*
 else
-    echo "$LOCALTARGETDIR not found. Cannot delete. Abort!"
+    echo "$LOCALTARGETDIRROOTFS not found. Cannot delete. Abort!"
     exit
 fi
 
 # 2. Fetch rootfs image from server and extract in targetdir
 echo "Start fetching stuff from REMOTEMACHINE"
-scp -r "ewdt@$REMOTEMACHINE:$REMOTESOURCEDIR/$ROOTFSIMAGE" "$LOCALTARGETDIR"
-cd "$LOCALTARGETDIR"
+scp -r "ewdt@$REMOTEMACHINE:$REMOTESOURCEDIR/$ROOTFSIMAGE" "$LOCALTARGETDIRROOTFS"
+cd "$LOCALTARGETDIRROOTFS"
 tar -xvJf "$ROOTFSIMAGE"
 cd -
 
+
+# 3. Copy kernel and dtb stuff into tftp directory.
+
+scp -r "ewdt@$REMOTEMACHINE:$REMOTESOURCEDIR/$KERNELIMAGE" "$LOCALTARGETDIRKERNEL"
+scp -r "ewdt@$REMOTEMACHINE:$REMOTESOURCEDIR/$DEVICETREE" "$LOCALTARGETDIRKERNEL"
+
 echo "!!!      FINISHED     !!!"
-
-# 3. TODO: Maybe copy kernel and dtb stuff into tftp directory. For now only apply rootfs from arago build
-
-
-#cp -L -f -v ${SOURCEDIR}/tiboot3.bin /media/thomas/BOOT/
-#cp -L -f -v ${SOURCEDIR}/tispl.bin /media/thomas/BOOT/
-#cp -L -f -v ${SOURCEDIR}/u-boot.img /media/thomas/BOOT/
-#cp -L -f -v ${SOURCEDIR}/sysfw.itb /media/thomas/BOOT/
