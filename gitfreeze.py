@@ -218,9 +218,7 @@ def main():
         #Every repo to restore has a clear state. Checkout desired commit
         print("")   #Just formating (Newline)
         for repoToRestore in gitRepositoriesToRestore: #type: GitRepository
-            for alreadyExitentRepo in gitRepositories: #type: GitRepository
-                if alreadyExitentRepo.repoName == repoToRestore.repoName:
-                    checkoutCommit(repoToRestore, searchDirectoryAbsolute)
+            checkoutCommit(repoToRestore, searchDirectoryAbsolute)
 
 
         #Last step is a final check: But only check repos which are got restored by this!
