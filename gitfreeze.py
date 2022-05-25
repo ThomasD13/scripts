@@ -158,10 +158,12 @@ def main():
     parser.add_argument("-save", help="Save the found repositories and their state into FILENAME.json file. This can be used to restore the repos state")
     parser.add_argument("-restore", help="Restore repositories according given file FILENAME.json")
     parser.add_argument("-force", action="store_true", help="Force to restore repositories, even if exiting ones are not in clean state")
+    parser.add_argument("-update", action="store_true", help="Effects only with -save option: Just updates repositories, which are defined within the specified output file if it exists already")
     args = parser.parse_args()
 
     searchDirectoryAbsolute = os.path.abspath(args.d)
     gitRepositories = []
+    gitRepositoriesReadFromFile = []
 
     print("")  # Just formating (Newline)
     identifyGitRepositories(gitRepositories, searchDirectoryAbsolute, True)
@@ -171,6 +173,27 @@ def main():
         print("")   #Just formating (Newline)
 
     if(args.save):
+        if(args.update):
+            #Only update git repos, which were previously defined within the given json.file
+            try:
+                with open(args.save + ".json", "r") as jsonFile:  # type: TextIO
+                    gitRepositoriesReadFromFile = jsonpickle.decode(jsonFile.read())
+            except (IOError):
+                print("Could not open file " + args.restore)
+                sys.exit(-1)
+            #foo
+            gitRepositoriesCleaned = gitRepositories.copy()
+            for repo in gitRepositories:
+                found = False
+                for repoFile in gitRepositoriesReadFromFile:
+                    if repo.repoName == repoFile.repoName:
+                        found = True
+                        break
+                if found == False:
+                    gitRepositoriesCleaned.remove(repo)
+            #End clean list of gitRepositories
+            gitRepositories = gitRepositoriesCleaned
+
         #We want human readable format, not everything in one line
         #See https://stackoverflow.com/questions/2664818/serializing-json-files-with-newlines-in-python
         jsonpickle.set_encoder_options('simplejson', indent=4)
