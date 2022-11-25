@@ -13,4 +13,4 @@ CODE=$(grep "Grand Total" $FILE | tr -s ' ' | cut -f4 -d" ")
 RO=$(grep "Grand Total" $FILE | tr -s ' ' | cut -f5 -d" ")
 RW=$(grep "Grand Total" $FILE | tr -s ' ' | cut -f6 -d" ")
 
-echo "Code: $(( CODE / DIVISOR))kB  RO: $(( RO / DIVISOR ))kB  RW: $(( RW / DIVISOR ))kB"
+echo "$FILE: Code: $(( CODE / DIVISOR))kB  RO: $(( RO / DIVISOR ))kB  RW: $(( RW / DIVISOR ))kB"

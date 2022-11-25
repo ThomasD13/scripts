@@ -10,7 +10,7 @@ fi
 
 for FOLDER in $GITDIR*
 	do
-		#echo "Try to do $FOLDER"
+		echo "Try to do $FOLDER"
 		[ -d $FOLDER ] && cd "$FOLDER" && echo "Entering into $FOLDER"
 		git status
 		echo "-----------------------------------------------------------------"
