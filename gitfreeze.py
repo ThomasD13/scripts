@@ -6,7 +6,6 @@ import subprocess
 from typing import TextIO
 
 import jsonpickle   # python3 -m pip install jsonpickle
-		    # python3 -m pip install simplejson
 import argparse
 
 #######################################################################################################################
@@ -176,7 +175,7 @@ def main():
         if(args.update):
             #Only update git repos, which were previously defined within the given json.file
             try:
-                with open(args.save + ".json", "r") as jsonFile:  # type: TextIO
+                with open(args.save, "r") as jsonFile:  # type: TextIO
                     gitRepositoriesReadFromFile = jsonpickle.decode(jsonFile.read())
             except (IOError):
                 print("Could not open file " + args.restore)
@@ -196,11 +195,11 @@ def main():
 
         #We want human readable format, not everything in one line
         #See https://stackoverflow.com/questions/2664818/serializing-json-files-with-newlines-in-python
-        jsonpickle.set_encoder_options('simplejson', indent=4)
+        jsonpickle.set_encoder_options('json', indent=4)
         frozen = jsonpickle.encode(gitRepositories)
-        with open(args.save + ".json", "w") as jsonFile:
+        with open(args.save, "w") as jsonFile:
             jsonFile.write(frozen)
-        print("Saved repository states to " + args.save + ".json")
+        print("Saved repository states to " + args.save)
 
     if(args.restore):
         try:
